@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, ReactNode } from "react";
+import { useState, useRef, ReactNode, useEffect } from "react";
 import Button from "./components/button";
 import { Play, XCircle, Loader2 } from "lucide-react";
 
@@ -11,6 +11,12 @@ type Node = {
 
 type RoadNetwork = Record<string, Node>;
 type CameFromMap = Record<string, string>;
+type AnimationRoad = {
+	start: { x: number; y: number; id: string };
+	end: { x: number; y: number; id: string };
+	speed: number;
+	progress: number;
+};
 
 const NODES: RoadNetwork = {
 	A: { id: "A", x: 50, y: 50, neighbors: ["B", "C", "D"] },
@@ -47,26 +53,41 @@ const maxY = Math.max(...Object.values(NODES).map((node) => node.y));
 const heuristic = (a: Node, b: Node): number =>
 	Math.hypot(a.x - b.x, a.y - b.y);
 
-let hasDpiSet = false;
-
 const AStarVisualizer: React.FC = () => {
-	const [path, setPath] = useState<string[]>([]);
-	const [openSet, setOpenSet] = useState<string[]>([]);
-	const [closedSet, setClosedSet] = useState<string[]>([]);
 	const [isRunning, setIsRunning] = useState<boolean>(false);
 	const [info, setInfo] = useState<ReactNode>("");
 	const [speed, setSpeed] = useState<number>(10);
+
 	const canvasRef = useRef<HTMLCanvasElement>(null);
+
+	const path = useRef<string[]>([]);
+	const closedSet2 = useRef<string[]>([]);
+	const animations = useRef<AnimationRoad[]>([]);
+	const isRunning2 = useRef<boolean>(false);
+	const hasDpiSet = useRef<boolean>(false);
+
 	const START = "F";
 	const END = "U";
+
+	useEffect(() => {
+		// I have no idea why this is fucking necessary, but it is
+		isRunning2.current = isRunning;
+	}, [isRunning]);
+
+	useEffect(() => {
+		drawNetwork();
+	}, [canvasRef]);
 
 	const DPI = window.devicePixelRatio;
 	const width = (maxX + 20) * DPI;
 	const height = (maxY + 20) * DPI;
 
-	useEffect(() => {
+	const draw = (): void => {
+		if (!isRunning2.current && !animations.current.some((a) => a.progress < 1))
+			return;
+
 		drawNetwork();
-	}, [path, openSet, closedSet]);
+	};
 
 	const drawNetwork = (): void => {
 		const canvas = canvasRef.current;
@@ -76,8 +97,8 @@ const AStarVisualizer: React.FC = () => {
 
 		ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-		if (!hasDpiSet) {
-			hasDpiSet = true;
+		if (!hasDpiSet.current) {
+			hasDpiSet.current = true;
 			ctx.scale(DPI, DPI);
 		}
 
@@ -86,17 +107,6 @@ const AStarVisualizer: React.FC = () => {
 				const neighbor = NODES[neighborId];
 				ctx.strokeStyle = "gray";
 				ctx.lineWidth = 1;
-				if (
-					(openSet.includes(node.id) || closedSet.includes(node.id)) &&
-					(openSet.includes(neighborId) || closedSet.includes(neighborId))
-				) {
-					ctx.strokeStyle = "lightyellow";
-					ctx.lineWidth = 2;
-				}
-				if (path.includes(node.id) && path.includes(neighborId)) {
-					ctx.strokeStyle = "gold";
-					ctx.lineWidth = 3;
-				}
 				ctx.beginPath();
 				ctx.moveTo(node.x, node.y);
 				ctx.lineTo(neighbor.x, neighbor.y);
@@ -104,12 +114,54 @@ const AStarVisualizer: React.FC = () => {
 			});
 		});
 
+		animations.current.forEach((animation) => {
+			if (animation.progress < 1) {
+				animation.progress += animation.speed * speed;
+			}
+
+			animation.progress = Math.min(animation.progress, 1);
+
+			ctx.strokeStyle = "lightyellow";
+			ctx.lineWidth = 2;
+
+			ctx.beginPath();
+			ctx.moveTo(animation.start.x, animation.start.y);
+			ctx.lineTo(
+				animation.start.x +
+					(animation.end.x - animation.start.x) * animation.progress,
+				animation.start.y +
+					(animation.end.y - animation.start.y) * animation.progress,
+			);
+			ctx.stroke();
+		});
+
+		if (path.current.length > 0) {
+			Object.keys(NODES).forEach((id) => {
+				if (
+					path.current.includes(id) &&
+					!animations.current.some((a) => a.progress < 1)
+				) {
+					const node = NODES[id];
+					node.neighbors.forEach((neighborId) => {
+						if (!path.current.includes(neighborId)) return;
+						const neighbor = NODES[neighborId];
+						ctx.strokeStyle = "gold";
+						ctx.lineWidth = 3;
+						ctx.beginPath();
+						ctx.moveTo(node.x, node.y);
+						ctx.lineTo(neighbor.x, neighbor.y);
+						ctx.stroke();
+					});
+				}
+			});
+		}
+
 		Object.keys(NODES).forEach((id) => {
 			const node = NODES[id];
+
 			ctx.fillStyle = "grey";
-			if (openSet.includes(id)) ctx.fillStyle = "lightyellow";
-			if (closedSet.includes(id)) ctx.fillStyle = "lightyellow";
-			if (path.includes(id)) ctx.fillStyle = "gold";
+			if (closedSet2.current.includes(id)) ctx.fillStyle = "lightyellow";
+			if (path.current.includes(id)) ctx.fillStyle = "gold";
 
 			if (id === START) ctx.fillStyle = "lightgreen";
 			if (id === END) ctx.fillStyle = "pink";
@@ -129,11 +181,15 @@ const AStarVisualizer: React.FC = () => {
 		});
 	};
 
+	setInterval(draw, 15);
+
 	const findPath = (): void => {
 		if (isRunning) return;
 		reset();
 		setIsRunning(true);
 		setInfo("");
+
+		console.log("finding path");
 
 		let startTime = performance.now();
 		let openSet: string[] = [START];
@@ -155,7 +211,7 @@ const AStarVisualizer: React.FC = () => {
 				tempPath.push(current);
 				current = cameFrom[current];
 			}
-			setPath(tempPath.reverse());
+			path.current = tempPath.reverse();
 		};
 
 		const step = (): void => {
@@ -163,9 +219,16 @@ const AStarVisualizer: React.FC = () => {
 			openSet.sort((a, b) => fScore[a] - fScore[b]);
 			let current = openSet.shift()!;
 			closedSet.push(current);
-			setClosedSet([...closedSet]);
+			closedSet2.current.push(current);
 
 			if (current === END) {
+				console.log("Found path");
+				animations.current.push({
+					start: NODES[cameFrom[current]],
+					end: NODES[current],
+					progress: 0,
+					speed: 0.02,
+				});
 				reconstructPath(current);
 				setIsRunning(false);
 				setInfo(
@@ -208,7 +271,6 @@ const AStarVisualizer: React.FC = () => {
 						tentative_gScore + heuristic(NODES[neighborId], NODES[END]);
 					if (!openSet.includes(neighborId)) {
 						openSet.push(neighborId);
-						setOpenSet([...openSet]);
 					}
 				}
 			}
@@ -230,6 +292,17 @@ const AStarVisualizer: React.FC = () => {
 				</>,
 			);
 
+			const importance = Math.pow(fScore[current] + 1, -3); // Larger difference in importance
+			const animationSpeed = importance * 8_000_000; // More pronounced speed difference for paths
+
+			NODES[cameFrom[current]] &&
+				animations.current.push({
+					start: NODES[cameFrom[current]],
+					end: NODES[current],
+					progress: 0,
+					speed: animationSpeed,
+				});
+
 			if (openSet.length === 0) {
 				setIsRunning(false);
 				setInfo(`No path found!`);
@@ -245,9 +318,12 @@ const AStarVisualizer: React.FC = () => {
 	};
 
 	const reset = (): void => {
-		setOpenSet([]);
-		setClosedSet([]);
-		setPath([]);
+		closedSet2.current = [];
+		path.current = [];
+		animations.current = [];
+		setIsRunning(false);
+		setInfo("");
+		drawNetwork();
 	};
 
 	return (
@@ -260,7 +336,7 @@ const AStarVisualizer: React.FC = () => {
 			/>
 			<p className="text-white">{info}</p>
 
-			<div className="border-b border-gray-600 pb-4 flex gap-4">
+			<div className="flex gap-4">
 				<Button onClick={findPath} disabled={isRunning}>
 					{isRunning ? (
 						<>
@@ -280,7 +356,7 @@ const AStarVisualizer: React.FC = () => {
 				</Button>
 			</div>
 			{!isRunning && (
-				<div className="flex gap-4">
+				<div className="border-t border-gray-600 pt-4 flex gap-4">
 					<Button
 						styles={`bg-gray-500 hover:bg-gray-600 ${
 							speed === 1 ? "ring-4 ring-yellow-900" : ""
