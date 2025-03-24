@@ -1,6 +1,7 @@
 import { useState, useRef, ReactNode, useEffect } from "react";
 import Button from "./components/button";
 import { Play, XCircle, Loader2 } from "lucide-react";
+import Info from "./components/info";
 
 type Node = {
 	id: string;
@@ -55,23 +56,24 @@ const heuristic = (a: Node, b: Node): number =>
 
 const AStarVisualizer: React.FC = () => {
 	const [isRunning, setIsRunning] = useState<boolean>(false);
-	const [info, setInfo] = useState<ReactNode>("");
-	const [speed, setSpeed] = useState<number>(10);
+	const [info, setInfo] = useState<ReactNode>("Please select a start node.");
+	const [speed, setSpeed] = useState<number>(1);
 
 	const canvasRef = useRef<HTMLCanvasElement>(null);
 
 	const path = useRef<string[]>([]);
-	const closedSet2 = useRef<string[]>([]);
+	const closedSetRef = useRef<string[]>([]);
 	const animations = useRef<AnimationRoad[]>([]);
-	const isRunning2 = useRef<boolean>(false);
+	const isRunningRef = useRef<boolean>(false);
 	const hasDpiSet = useRef<boolean>(false);
+	const hoveredNode = useRef<string | null>(null);
 
-	const START = "F";
-	const END = "U";
+	const startRef = useRef<string | null>(null);
+	const endRef = useRef<string | null>(null);
 
 	useEffect(() => {
 		// I have no idea why this is fucking necessary, but it is
-		isRunning2.current = isRunning;
+		isRunningRef.current = isRunning;
 	}, [isRunning]);
 
 	useEffect(() => {
@@ -81,13 +83,6 @@ const AStarVisualizer: React.FC = () => {
 	const DPI = window.devicePixelRatio;
 	const width = (maxX + 20) * DPI;
 	const height = (maxY + 20) * DPI;
-
-	const draw = (): void => {
-		if (!isRunning2.current && !animations.current.some((a) => a.progress < 1))
-			return;
-
-		drawNetwork();
-	};
 
 	const drawNetwork = (): void => {
 		const canvas = canvasRef.current;
@@ -160,14 +155,17 @@ const AStarVisualizer: React.FC = () => {
 			const node = NODES[id];
 
 			ctx.fillStyle = "grey";
-			if (closedSet2.current.includes(id)) ctx.fillStyle = "lightyellow";
+			if (closedSetRef.current.includes(id)) ctx.fillStyle = "lightyellow";
 			if (path.current.includes(id)) ctx.fillStyle = "gold";
 
-			if (id === START) ctx.fillStyle = "lightgreen";
-			if (id === END) ctx.fillStyle = "pink";
+			if (id === startRef.current) ctx.fillStyle = "lightgreen";
+			if (id === endRef.current) ctx.fillStyle = "pink";
+
+			let size = 10;
+			hoveredNode.current === id && (size = 12);
 
 			ctx.beginPath();
-			ctx.arc(node.x, node.y, 10, 0, Math.PI * 2);
+			ctx.arc(node.x, node.y, size, 0, Math.PI * 2);
 			ctx.fill();
 			ctx.strokeStyle = "black";
 			ctx.stroke();
@@ -181,32 +179,44 @@ const AStarVisualizer: React.FC = () => {
 		});
 	};
 
-	setInterval(draw, 15);
+	setInterval(() => {
+		if (
+			!isRunningRef.current &&
+			!animations.current.some((a) => a.progress < 1)
+		)
+			return;
+		drawNetwork();
+	}, 15);
 
 	const findPath = (): void => {
-		if (isRunning) return;
-		reset();
+		if (isRunning || !startRef.current || !endRef.current) return;
+
+		reset(false);
 		setIsRunning(true);
 		setInfo("");
 
 		console.log("finding path");
 
-		let startTime = performance.now();
-		let openSet: string[] = [START];
-		let closedSet: string[] = [];
-		let cameFrom: CameFromMap = {};
-		let gScore: Record<string, number> = {};
-		let fScore: Record<string, number> = {};
+		const startTime = performance.now();
+		let steps = 0;
+
+		const start = startRef.current!;
+		const end = endRef.current!;
+		const openSet: string[] = [start];
+		const closedSet: string[] = [];
+		const cameFrom: CameFromMap = {};
+		const gScore: Record<string, number> = {};
+		const fScore: Record<string, number> = {};
 
 		Object.keys(NODES).forEach((node) => {
 			gScore[node] = Infinity;
 			fScore[node] = Infinity;
 		});
-		gScore[START] = 0;
-		fScore[START] = heuristic(NODES[START], NODES[END]);
+		gScore[start] = 0;
+		fScore[start] = heuristic(NODES[start], NODES[end]);
 
 		const reconstructPath = (current: string): void => {
-			let tempPath: string[] = [START];
+			let tempPath: string[] = [start];
 			while (cameFrom[current]) {
 				tempPath.push(current);
 				current = cameFrom[current];
@@ -216,12 +226,13 @@ const AStarVisualizer: React.FC = () => {
 
 		const step = (): void => {
 			if (openSet.length === 0) return;
+			steps++;
 			openSet.sort((a, b) => fScore[a] - fScore[b]);
 			let current = openSet.shift()!;
 			closedSet.push(current);
-			closedSet2.current.push(current);
+			closedSetRef.current.push(current);
 
-			if (current === END) {
+			if (current === end) {
 				console.log("Found path");
 				animations.current.push({
 					start: NODES[cameFrom[current]],
@@ -233,28 +244,18 @@ const AStarVisualizer: React.FC = () => {
 				setIsRunning(false);
 				setInfo(
 					<>
-						<span
-							style={{
-								display: "inline-block",
-								width: "6ch",
-							}}
-						>
-							Cost:
-						</span>
-						<b>{gScore[END].toFixed(2)}</b>
+						<Info name="Cost" value={gScore[current].toFixed(2).toString()} />
 						<br />
-						<span
-							style={{
-								display: "inline-block",
-								width: "6ch",
-							}}
-						>
-							Time:
-						</span>
-						<b>
-							{(performance.now() - startTime).toFixed(1)}ms
-							{speed !== 10 && ` (speed not MAX)`}
-						</b>
+						<Info name="Steps" value={steps.toString()} />
+						{speed === 10 && (
+							<>
+								<br />
+								<Info
+									name="Time"
+									value={`${(performance.now() - startTime).toFixed(2)}ms`}
+								/>
+							</>
+						)}
 					</>,
 				);
 				return;
@@ -268,7 +269,7 @@ const AStarVisualizer: React.FC = () => {
 					cameFrom[neighborId] = current;
 					gScore[neighborId] = tentative_gScore;
 					fScore[neighborId] =
-						tentative_gScore + heuristic(NODES[neighborId], NODES[END]);
+						tentative_gScore + heuristic(NODES[neighborId], NODES[end]);
 					if (!openSet.includes(neighborId)) {
 						openSet.push(neighborId);
 					}
@@ -277,18 +278,11 @@ const AStarVisualizer: React.FC = () => {
 
 			setInfo(
 				<>
-					<span
-						style={{
-							display: "inline-block",
-							width: "10ch",
-						}}
-					>
-						Current ID:
-					</span>
-					<b>{current}</b>
+					<Info name="Current" value={current} />
 					<br />
-					<span style={{ display: "inline-block", width: "10ch" }}>Cost:</span>
-					<b>{gScore[current].toFixed(2)}</b>
+					<Info name="Cost" value={gScore[current].toFixed(2).toString()} />
+					<br />
+					<Info name="Steps" value={steps.toString()} />
 				</>,
 			);
 
@@ -317,12 +311,62 @@ const AStarVisualizer: React.FC = () => {
 		step();
 	};
 
-	const reset = (): void => {
-		closedSet2.current = [];
+	const reset = (full: boolean): void => {
+		closedSetRef.current = [];
 		path.current = [];
 		animations.current = [];
-		setIsRunning(false);
 		setInfo("");
+		if (full) {
+			startRef.current = null;
+			endRef.current = null;
+			setInfo("Please select a start node.");
+		}
+		setIsRunning(false);
+		drawNetwork();
+	};
+
+	const handleReset = (): void => {
+		reset(true);
+	};
+
+	const isHovering = (
+		mouseX: number,
+		mouseY: number,
+		x: number,
+		y: number,
+	): boolean => {
+		const r = 10;
+		return mouseX > x - r && mouseX < x + r && mouseY > y - r && mouseY < y + r;
+	};
+
+	const handleHover = (
+		e: React.MouseEvent<HTMLCanvasElement, MouseEvent>,
+	): void => {
+		const mouseX = e.nativeEvent.offsetX;
+		const mouseY = e.nativeEvent.offsetY;
+
+		hoveredNode.current = null;
+		for (let node of Object.values(NODES)) {
+			if (isHovering(mouseX, mouseY, node.x, node.y)) {
+				hoveredNode.current = node.id;
+				drawNetwork();
+				return;
+			}
+		}
+
+		drawNetwork();
+	};
+
+	const handleClick = (): void => {
+		if (!hoveredNode.current) return;
+		if (!startRef.current) {
+			startRef.current = hoveredNode.current;
+			setInfo("Please select an end node.");
+		} else if (!endRef.current) {
+			endRef.current = hoveredNode.current;
+			setInfo("Click run to start.");
+		}
+
 		drawNetwork();
 	};
 
@@ -333,6 +377,8 @@ const AStarVisualizer: React.FC = () => {
 				style={{ width: maxX + 20, height: maxY + 20 }}
 				width={width}
 				height={height}
+				onMouseMove={handleHover}
+				onClick={handleClick}
 			/>
 			<p className="text-white">{info}</p>
 
@@ -350,7 +396,7 @@ const AStarVisualizer: React.FC = () => {
 						</>
 					)}
 				</Button>
-				<Button styles="bg-gray-500 hover:bg-gray-600" onClick={reset}>
+				<Button styles="bg-gray-500 hover:bg-gray-600" onClick={handleReset}>
 					<XCircle className="size-5" />
 					Reset
 				</Button>
