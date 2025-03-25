@@ -1,54 +1,42 @@
-# React + TypeScript + Vite
+# A\* Algorithm Visualizer
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This is a simple implementation of the A\* algorithm made with React and TypeScript. It is intended to be a learning tool, and is not optimized for performance.
 
-Currently, two official plugins are available:
+## Overview of the Algorithm
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+The A\* (pronounced "A-star") algorithm is a pathfinding algorithm used to find the shortest path between two points in a weighted graph or network. It is often used in video games, GPS navigation, and other applications where finding the shortest path is important.
 
-## Expanding the ESLint configuration
+The algorithm works by assigning a cost to each node in the graph, and then using a heuristic function to estimate the cost of reaching the goal node from each node. The algorithm then explores the graph, starting from the start node, and expands nodes in order of their estimated cost until the goal node is reached.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## Setup Guide
 
-```js
-export default tseslint.config({
-  extends: [
-    // Remove ...tseslint.configs.recommended and replace with this
-    ...tseslint.configs.recommendedTypeChecked,
-    // Alternatively, use this for stricter rules
-    ...tseslint.configs.strictTypeChecked,
-    // Optionally, add this for stylistic rules
-    ...tseslint.configs.stylisticTypeChecked,
-  ],
-  languageOptions: {
-    // other options...
-    parserOptions: {
-      project: ['./tsconfig.node.json', './tsconfig.app.json'],
-      tsconfigRootDir: import.meta.dirname,
-    },
-  },
-})
+1. **Clone the Repository**
+
+   Clone the project repository to your local machine using the following command:
+
+   ```bash
+   git clone https://github.com/programordie2/astar-visualizer.git
+   cd astar-visualizer
+   ```
+
+2. **Install Dependencies**
+
+   Install the necessary dependencies by running:
+
+   ```bash
+   npm install
+   ```
+
+### Running the Project
+
+To start the development server and run the project locally, execute:
+
+```bash
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+This will start the development server, and you can view the application by navigating to `http://localhost:5173/astar-visualizer/` in your web browser.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## License
 
-export default tseslint.config({
-  plugins: {
-    // Add the react-x and react-dom plugins
-    'react-x': reactX,
-    'react-dom': reactDom,
-  },
-  rules: {
-    // other rules...
-    // Enable its recommended typescript rules
-    ...reactX.configs['recommended-typescript'].rules,
-    ...reactDom.configs.recommended.rules,
-  },
-})
-```
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
