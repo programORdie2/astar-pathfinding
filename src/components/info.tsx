@@ -4,7 +4,7 @@ export default function Info({ name, value }: { name: string; value: string }) {
 			<span className="inline-block w-10 whitespace-nowrap mr-3 text-gray-600 text-sm text-end">
 				{name}
 			</span>
-			<b className="text-sm">{value}</b>
+			<b className="text-sm text-white">{value}</b>
 		</>
 	);
 }

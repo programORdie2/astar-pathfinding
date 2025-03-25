@@ -204,12 +204,11 @@ const AStarVisualizer: React.FC = () => {
 			{typeof info === "string" ? (
 				<p className="text-white">{info}</p>
 			) : (
-				<div className="flex gap-4">
+				<div className="flex flex-col gap-0">
 					{info.map((i, index) => (
-						<>
+						<div>
 							<Info key={index} name={i.name} value={i.value} />
-							<br />
-						</>
+						</div>
 					))}
 				</div>
 			)}
